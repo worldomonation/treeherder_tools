@@ -4,6 +4,13 @@ version = "0.1.0"
 description = ""
 authors = ["Edwin Gao <egao@outlook.com>"]
 
+packages = [
+    { include = "treeherder_tools" }
+]
+
+[tool.poetry.scripts]
+treetools = "treeherder_tools.main:main"
+
 [tool.poetry.dependencies]
 python = "^3.7"
 
