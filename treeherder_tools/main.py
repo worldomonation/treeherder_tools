@@ -30,7 +30,11 @@ def get_list_of_log_urls(branch, revision, platform):
         pushes = client.get_pushes(
             branch, **{"revision": revision})
     else:
-        pushes = client.get_pushes(branch)[0]
+        pushes = client.get_pushes(branch, count=1)
+
+    if not type(pushes) == list:
+        print('Expected type<list>, received {}'.format(type(pushes)))
+        sys.exit(1)
 
     log_urls = {}
 
