@@ -13,8 +13,9 @@ import thclient
 def parse_arguments(argv):
     parser = ArgumentParser()
     parser.add_argument('--keywords', action='store', default=None, required=True, nargs='+', help="One or more keywords to search in the logs.")
-    parser.add_argument('--revision', action='store', default=None, required=True, help="Revision to search against. Obtain from Treeherder.")
-    parser.add_argument('--branch', action='store', default='try', help="Treeherder branch.")
+    parser.add_argument('--revision', action='store', default=None, help="Revision to search against. Obtain from Treeherder push. Defaults to obtain latest push for given platform.")
+    parser.add_argument('--branch', action='store', default='try', help="Treeherder branch. Defaults to try.")
+    parser.add_argument('--platform', action='store', default=None, required=True, help="Platform to check against.")
     parser.add_argument('--ran', action='store_true', default=False, help='Checks if test was run, and which chunk.')
     parser.add_argument('--exact', action='store_true', default=False, help='Require exact match with the test name.')
 
@@ -22,25 +23,32 @@ def parse_arguments(argv):
     return args
 
 
-def get_list_of_log_urls(branch, revision):
+def get_list_of_log_urls(branch, revision, platform):
     client = thclient.TreeherderClient()
 
-    pushes = client.get_pushes(
-        branch, **{"revision": revision})
+    if revision:
+        pushes = client.get_pushes(
+            branch, **{"revision": revision})
+    else:
+        pushes = client.get_pushes(branch)[0]
 
     log_urls = {}
+
+    count = 30
+    if branch is not 'try':
+        count = 10000
 
     start_time = time.perf_counter()
 
     for push in pushes:
-        jobs = client.get_jobs('try', push_id=push['id'], count=30)
+        jobs = client.get_jobs(branch, push_id=push['id'], count=count)
         for job in jobs:
-            if 'osx' in job['platform'] and job['job_type_name'].startswith('test'):
+            if platform in job['platform'] and job['job_type_name'].startswith('test'):
                 job_name = job['job_type_name']
 
                 job_id = job['id']
 
-                response = client.get_job_log_url('try', **{"job_id": job_id})
+                response = client.get_job_log_url(branch, **{"job_id": job_id})
 
                 log_urls[job_name] = [entry['url']
                             for entry in response if entry.get('url', None) is not None]
@@ -94,7 +102,7 @@ def process_logs(log_urls, keywords, ran):
 
 
 def process_results(matches, revision):
-    print(f'Keywords found in f{revision}:')
+    print(f'Keywords found in {revision}:')
     for key in matches.keys():
         print('-->', key)
         if matches[key]:
@@ -106,7 +114,7 @@ def process_results(matches, revision):
 
 def main():
     args = parse_arguments(sys.argv[1:])
-    log_urls = get_list_of_log_urls(args.branch, args.revision)
+    log_urls = get_list_of_log_urls(args.branch, args.revision, args.platform)
     matches = process_logs(log_urls, args.keywords, args.ran)
     process_results(matches, args.revision)
 
